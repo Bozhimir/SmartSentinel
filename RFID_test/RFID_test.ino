@@ -13,12 +13,17 @@
  
 MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
 
-const char* host = "sql7.freesqldatabase.com";
+/*const char* host = "sql7.freesqldatabase.com";
 char user[] = "sql7236757";              // MySQL user login username
-char password[] = "EHsWrKxJuw";        // MySQL user login password
+char password[] = "EHsWrKxJuw";        // MySQL user login password*/
+
+const char* host = "den1.mysql2.gear.host";
+char user[] = "sentinel";              // MySQL user login username
+char password[] = "Sc2r0I-~CgE9";        // MySQL user login password
+
 String content= "";
 char contentC[128];
-char INSERT_SQL[] = "INSERT INTO sql7236757.LOG(datetime, rfid) VALUES (NOW(), \"%s\")";
+char INSERT_SQL[] = "INSERT INTO sentinel.log(datetime, rfid) VALUES (NOW(), \"%s\")";
 char query[128];
 
 // WiFi card example
@@ -39,16 +44,16 @@ void setup() {
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print("Connecting to Wi-Fi...");
+    Serial.print(".");
   }
 
-  Serial.println("Connecting to DB...");
+  Serial.println("Connecting...");
   if (conn.connect(host, 3306, user, password)) {
-    Serial.println("Connected to DB!");
-    delay(100);
+    Serial.println("Connected!");
+    delay(1000);
   }
   else
-    Serial.println("Connection to DB failed.");
+    Serial.println("Connection failed.");
 }
  
 void loop() {
