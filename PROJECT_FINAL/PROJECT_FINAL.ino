@@ -47,15 +47,20 @@ char QUERY_POP[] = "SELECT rfid FROM sentinel.trusted";
 char query[128];
 
 char INSERT_SQL[] = "INSERT INTO sentinel.trusted(rfid) VALUES (\"%s\")";
-char DELETE_SQL[] = "DELETE FROM sentinel.trusted WHERE rfid = \"%s\"";
+char DELETE_SQL[] = "DELETE FROM sentinel.trusted WHERE rfid = %s";
 char INSERT_LOG[] = "INSERT INTO sentinel.log(datetime, rfid) VALUES (NOW(), \"%s\")";
-char CARD_REGISTERED[] = "SELECT rfid FROM sentinel.trusted WHERE rfid = \"%s\"";
 
 // PushingBox scenario DeviceId code and API
 String deviceId = "vBECF1260DE1D1A7";
 const char* logServer = "api.pushingbox.com";
 
 void ConnectToDB(){
+  display.clearDisplay();
+  display.setTextSize(2.5);
+  display.setCursor(0,0);
+  display.println("Connecting");
+  display.setTextSize(2.5);
+  display.display();
   Serial.begin(115200);
   while (!Serial); // wait for serial port to connect. Needed for Leonardo only
 
@@ -63,16 +68,15 @@ void ConnectToDB(){
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
   }
 
-  Serial.println("Connecting...");
   if (conn.connect(host, 3306, user, password)) {
     Serial.println("Connected!");
     delay(1000);
   }
   else
     Serial.println("Connection failed.");
+  Lock();
 }
 
 void InitRFID()
@@ -80,7 +84,6 @@ void InitRFID()
   SPI.begin();      // Init SPI bus
   mfrc522.PCD_Init();   // Init MFRC522
   mfrc522.PCD_DumpVersionToSerial();  // Show details of PCD - MFRC522 Card Reader details
-  Serial.println(F("Scan PICC to see UID, SAK, type, and data blocks..."));
 }
 
 void ReadCard()
@@ -150,8 +153,14 @@ void InsertTrustedCard(char* rfid)
 
   sprintf(query, INSERT_SQL, rfid);
   cur_mem->execute(query);
+
+  display.clearDisplay();
+  display.setTextSize(1.5);
+  display.setCursor(0,0);
+  display.println("Card added");
+  display.setTextSize(2.5);
+  display.display();
   
-  Serial.print("Done");
 }
 
 void RemoveTrustedCard(char* rfid)
@@ -194,18 +203,15 @@ void LogCard(char* rfid)
   display.clearDisplay();
   display.setTextSize(1.5);
   display.setCursor(0,0);
-  display.println("Card added");
+  display.println("Card logged");
   display.display();
   display.setTextSize(2.5);
-  Serial.print("Logged card");
 }
 
 void Alarm()
 {
   String message = "Someone has broken into your house!";
-  Serial.println("- connecting to pushing server: " + String(logServer));
   if (client.connect(logServer, 80)) {
-    Serial.println("- succesfully connected");
     
     String postStr = "devid=";
     postStr += String(deviceId);
@@ -213,7 +219,7 @@ void Alarm()
     postStr += String(message);
     postStr += "\r\n\r\n";
     
-    Serial.println("- sending data...");
+    Serial.println("- sending notification...");
     
     client.print("POST /pushingbox HTTP/1.1\n");
     client.print("Host: api.pushingbox.com\n");
@@ -224,11 +230,19 @@ void Alarm()
     client.print("\n\n");
     client.print(postStr);
   }
-  Serial.println("- stopping the client");
 
   display.clearDisplay();
   display.setCursor(0,0);
   display.println("ALARM");
+  display.display();
+}
+
+void PleaseWait()
+{
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.setTextSize(2);
+  display.println("Please wait");
   display.display();
 }
 
@@ -239,7 +253,6 @@ void Lock()
   display.println("Locked");
   display.display();
   
-  Serial.println("LOCKED");
   isLocked = true;
 }
 
@@ -250,7 +263,6 @@ void Unlock()
   display.println("Unlocked");
   display.display();
   
-  Serial.println("UNLOCKED");
   isLocked = false;
 }
 
@@ -266,31 +278,34 @@ void InitDisplay()
   display.setTextColor(WHITE);
   display.setCursor(0,0);
 }
-
+void ReadZodiac(){
+  Serial.println(analogRead(A0));
+  
+}
 void setup() {
   // put your setup code here, to run once:
 
   InitDisplay();
-  Lock();
-  
+  pinMode(D8, INPUT);
   ConnectToDB();
   InitRFID();
 }
 
 void loop() {
+  ReadZodiac();
   // put your main code here, to run repeatedly:
   ReadCard();
   if(strlen(contentC) != 0)
   {
     if(IsMasterCard(contentC))   {
+       display.clearDisplay();
+       display.setCursor(0,0);
+       display.println("Add or remove card");
+       display.display();
        while(strlen(contentC) == 0 || IsMasterCard(contentC)){
         ReadCard();
        }
-       display.clearDisplay();
-       display.setCursor(0,0);
-       display.setTextSize(1);
-       display.println("Add or remove card");
-       display.display();
+       PleaseWait();
        if(IsCardRegistered(contentC))
        {
         RemoveTrustedCard(contentC);
@@ -302,8 +317,8 @@ void loop() {
        
     }
     else{
+      PleaseWait();
       LogCard(contentC);
-      Serial.println("CARD LOGGED");
       if(IsTrustedCard(contentC)){
          Unlock();
          delay(5000);
@@ -311,9 +326,9 @@ void loop() {
       }
       else{
         Alarm();
-        Serial.println("ALARM");
+        delay(1000);
+        Lock();
       }
      }
   }
-  
 }
