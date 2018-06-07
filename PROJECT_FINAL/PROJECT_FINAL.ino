@@ -11,6 +11,16 @@
 #include <Arduino.h>
 #include <string.h>
 
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define OLED_RESET LED_BUILTIN  //4
+Adafruit_SSD1306 display(OLED_RESET);
+
+#if (SSD1306_LCDHEIGHT != 64)
+#error("Height incorrect, please fix Adafruit_SSD1306.h!");
+#endif
+
 #define RST_PIN         D3         // Configurable, see typical pin layout above
 #define SS_PIN          D0        // Configurable, see typical pin layout above
  
@@ -21,8 +31,8 @@ char user[] = "sentinel";              // MySQL user login username
 char password[] = "Sc2r0I-~CgE9";        // MySQL user login password
 
 // WiFi card example
-char ssid[] = "FMI-403";    // your SSID
-char pass[] = "";       // your SSID Password
+char ssid[] = "AndroidAP";    // your SSID
+char pass[] = "aaaaaaaa";       // your SSID Password
 
 WiFiClient client;           // Use this for WiFi instead of EthernetClient
 MySQL_Connection conn((Client *)&client);
@@ -37,7 +47,9 @@ char QUERY_POP[] = "SELECT rfid FROM sentinel.trusted";
 char query[128];
 
 char INSERT_SQL[] = "INSERT INTO sentinel.trusted(rfid) VALUES (\"%s\")";
+char DELETE_SQL[] = "DELETE FROM sentinel.trusted WHERE rfid = \"%s\"";
 char INSERT_LOG[] = "INSERT INTO sentinel.log(datetime, rfid) VALUES (NOW(), \"%s\")";
+char CARD_REGISTERED[] = "SELECT rfid FROM sentinel.trusted WHERE rfid = \"%s\"";
 
 // PushingBox scenario DeviceId code and API
 String deviceId = "vBECF1260DE1D1A7";
@@ -142,14 +154,50 @@ void InsertTrustedCard(char* rfid)
   Serial.print("Done");
 }
 
+void RemoveTrustedCard(char* rfid)
+{
+  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
+
+  sprintf(query, DELETE_SQL, rfid);
+  cur_mem->execute(query);
+  
+  display.clearDisplay();
+  display.setTextSize(1.5);
+  display.setCursor(0,0);
+  display.println("Card removed");
+  display.setTextSize(2.5);
+  display.display();
+}
+
+bool IsCardRegistered(char* rfid)
+{
+
+  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
+  sprintf(query, QUERY_POP, 9000000);
+  cur_mem->execute(query);
+  column_names *cols = cur_mem->get_columns();
+  row_values *row = NULL;
+  row = cur_mem->get_next_row();
+  if (row != NULL) {
+      return true;
+    }
+  return false;
+}
+
 void LogCard(char* rfid)
 {
   MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
 
   sprintf(query, INSERT_LOG, rfid);
   cur_mem->execute(query);
-  
-  Serial.print("Done");
+
+  display.clearDisplay();
+  display.setTextSize(1.5);
+  display.setCursor(0,0);
+  display.println("Card added");
+  display.display();
+  display.setTextSize(2.5);
+  Serial.print("Logged card");
 }
 
 void Alarm()
@@ -177,22 +225,54 @@ void Alarm()
     client.print(postStr);
   }
   Serial.println("- stopping the client");
+
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("ALARM");
+  display.display();
 }
 
 void Lock()
 {
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("Locked");
+  display.display();
+  
   Serial.println("LOCKED");
   isLocked = true;
 }
 
 void Unlock()
 {
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("Unlocked");
+  display.display();
+  
   Serial.println("UNLOCKED");
   isLocked = false;
 }
 
+void InitDisplay()
+{
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+
+  // Clear the buffer.
+  display.clearDisplay();
+  display.display();
+
+  display.setTextSize(2.5);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+}
+
 void setup() {
   // put your setup code here, to run once:
+
+  InitDisplay();
+  Lock();
+  
   ConnectToDB();
   InitRFID();
 }
@@ -206,7 +286,20 @@ void loop() {
        while(strlen(contentC) == 0 || IsMasterCard(contentC)){
         ReadCard();
        }
-       InsertTrustedCard(contentC);
+       display.clearDisplay();
+       display.setCursor(0,0);
+       display.setTextSize(1);
+       display.println("Add or remove card");
+       display.display();
+       if(IsCardRegistered(contentC))
+       {
+        RemoveTrustedCard(contentC);
+       }
+       else
+       {
+        InsertTrustedCard(contentC);
+       }
+       
     }
     else{
       LogCard(contentC);
